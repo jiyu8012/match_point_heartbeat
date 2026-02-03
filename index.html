@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Penetration - Private Database</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Noto+Sans+KR:wght@300;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #050505;
+            --gold-main: #d4af37;
+            --gold-light: #f9eac8;
+            --gold-dim: #6e5a1b;
+            --text-gray: #888;
+            --footer-height: 80px;
+            --accent-red: #ff4d4d;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-deep); color: white;
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0; padding: 0; width: 100%; 
+            overflow-x: hidden; overflow-y: auto;
+            min-height: 100vh;
+        }
+
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 999;
+        }
+        .bg-pattern {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: radial-gradient(var(--gold-dim) 1px, transparent 1px);
+            background-size: 30px 30px; opacity: 0.1; pointer-events: none; z-index: -1;
+        }
+
+        /* [ 상단 헤더: Penetration ] */
+        .main-header {
+            width: 100%;
+            padding: 60px 20px 30px 20px;
+            display: flex;
+            justify-content: center;
+            position: relative;
+            z-index: 800;
+        }
+
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            position: relative;
+        }
+
+        .header-content::before {
+            content: '';
+            position: absolute;
+            left: -25px;
+            top: 5px;
+            bottom: 5px;
+            width: 6px;
+            background: var(--gold-main);
+            box-shadow: 0 0 15px var(--gold-main);
+            background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.5) 2px, rgba(0,0,0,0.5) 4px);
+        }
+
+        .penetration-main-text {
+            font-family: 'Cinzel', serif;
+            font-size: 4.2rem;
+            font-weight: 900;
+            color: #fff;
+            line-height: 0.9;
+            margin: 0;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            background: linear-gradient(rgba(255,255,255,1) 50%, rgba(255,255,255,0.7) 50%);
+            background-size: 100% 4px;
+            -webkit-background-clip: text;
+            text-shadow: 3px 3px 0px rgba(212, 175, 55, 0.25);
+        }
+
+        .volleyball-sub-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1rem;
+            color: var(--gold-dim);
+            margin-top: 8px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 899px) {
+            .penetration-main-text { font-size: 2.8rem; }
+            .volleyball-sub-text { font-size: 0.75rem; letter-spacing: 3px; }
+            .header-content::before { left: -15px; width: 4px; }
+            .main-header { padding: 40px 20px 20px 20px; }
+        }
+
+        /* [로딩 화면 및 메인 로직] */
+        #loading-screen {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; justify-content: center; align-items: center; perspective: 1200px;
+            transition: opacity 0.8s ease;
+        }
+        .folder-wrapper { position: relative; width: 240px; height: 340px; cursor: pointer; transform-style: preserve-3d; transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        @media (min-width: 900px) { .folder-wrapper { width: 300px; height: 400px; } }
+        .folder-wrapper.open { transform: rotateY(180deg) scale(1.05); }
+        .folder-back, .folder-front { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border: 1px solid var(--gold-dim); border-radius: 2px; box-shadow: 0 10px 50px rgba(0,0,0,0.8); }
+        .folder-back { background: #2a2418; background-image: linear-gradient(to bottom, transparent 90%, rgba(0,0,0,0.3) 100%), repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(212, 175, 55, 0.03) 40px, rgba(212, 175, 55, 0.03) 80px); display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .envelope-seal { width: 80px; height: 80px; border: 2px solid var(--gold-main); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-family: 'Cinzel'; color: var(--gold-main); font-weight: 900; font-size: 0.6rem; text-align: center; background: rgba(0,0,0,0.2); box-shadow: 0 0 15px var(--gold-dim); }
+        .envelope-id { position: absolute; bottom: 20px; right: 20px; font-family: 'Share Tech Mono'; font-size: 0.7rem; color: var(--gold-dim); }
+        .folder-front { background: #e8e2d0; color: #1a1a1a; transform: rotateY(180deg); padding: 30px; display: flex; flex-direction: column; }
+        .doc-header { border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 20px; }
+        .doc-header span { font-family: 'Cinzel'; font-weight: 900; font-size: 0.8rem; }
+        .folder-front .doc-line { width: 100%; height: 1px; background: #bbb; margin: 10px 0; }
+        .stamp { position: absolute; bottom: 40px; left: 30px; border: 3px solid var(--accent-red); color: var(--accent-red); font-family: 'Cinzel'; font-weight: 900; padding: 5px 10px; transform: rotate(-10deg); opacity: 0.8; font-size: 0.9rem; }
+        .click-hint { margin-top: 180px; font-family: 'Share Tech Mono'; color: var(--gold-light); font-size: 0.8rem; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .container { width: 100%; max-width: 100vw; padding: 15px; padding-bottom: 120px; display: flex; flex-direction: column; gap: 15px; opacity: 0; transition: opacity 0.5s ease; }
+        .sidebar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+        .roster-item { font-family: 'Noto Sans KR'; font-size: 0.8rem; color: var(--gold-dim); padding: 10px 2px; border: 1px solid rgba(212, 175, 55, 0.3); background: rgba(0,0,0,0.6); border-radius: 4px; text-align: center; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .roster-item.active { background: var(--gold-main); color: #000 !important; font-weight: bold; border-color: var(--gold-main); }
+
+        @media (min-width: 900px) {
+            .container { width: 1200px; margin: 0 auto 50px auto; flex-direction: row; gap: 40px; }
+            .sidebar { width: 250px; border-right: 1px solid rgba(212, 175, 55, 0.2); padding-right: 20px; display: flex; flex-direction: column; }
+            .roster-item { text-align: right; padding: 15px 10px; border: none; font-size: 1.1rem; background: none;}
+        }
+
+        .profile-card { background: rgba(10, 10, 10, 0.95); border: 1px solid var(--gold-dim); width: 100%; }
+        .card-header { padding: 20px; border-bottom: 1px solid rgba(212, 175, 55, 0.2); }
+        .name-row h1 { font-family: 'Noto Sans KR'; font-weight: 700; font-size: 1.8rem; margin: 0; color: var(--gold-light); }
+        .tags-row { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .tag { border: 1px solid var(--gold-dim); padding: 4px 8px; font-family: 'Cinzel'; color: var(--gold-main); font-size: 0.7rem; background: rgba(0,0,0,0.5); }
+        .card-body { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .visual-section { display: flex; width: 100%; height: 200px; gap: 10px; }
+        .photo-box { width: 140px; height: 100%; background: #000; border: 1px solid var(--gold-dim); position: relative; overflow: hidden; flex-shrink: 0; }
+        .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+        .chart-box { flex: 1; height: 100%; background: rgba(212, 175, 55, 0.02); min-width: 0; }
+        .info-area { border-top: 1px solid rgba(212, 175, 55, 0.2); padding-top: 20px; }
+        .data-row { margin-bottom: 25px; }
+        .label { font-family: 'Noto Sans KR'; font-size: 0.8rem; color: var(--gold-main); font-weight: bold; margin-bottom: 8px; display: block; letter-spacing: 1px; }
+        .label.highlight { color: var(--accent-red); }
+        .value { font-size: 0.95rem; color: #ddd; line-height: 1.7; padding-left: 12px; border-left: 2px solid var(--gold-dim); white-space: pre-wrap; word-break: keep-all; }
+        .secret-data { color: var(--gold-dim); background: rgba(255, 255, 255, 0.05); padding: 4px 10px; cursor: pointer; border-radius: 3px; font-size: 0.85rem; transition: 0.3s; }
+        .secret-data.revealed { color: var(--accent-red); background: rgba(255, 77, 77, 0.1); font-weight: bold; }
+
+        .game-footer {
+            position: fixed; bottom: 0; left: 0; width: 100%; height: var(--footer-height);
+            background: rgba(5, 5, 5, 0.98); border-top: 1px solid var(--gold-dim);
+            display: flex; justify-content: center; align-items: center; gap: 30px; z-index: 900; 
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .game-btn { background: none; border: 1px solid var(--gold-dim); color: var(--gold-main); padding: 10px 20px; font-family: 'Cinzel'; cursor: pointer; font-size: 0.9rem; font-weight: bold; }
+        .page-counter { font-family: 'Cinzel'; color: var(--text-gray); font-size: 1rem; }
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div class="bg-pattern"></div>
+
+    <audio id="bgm" src="https://fascinating-caramel-491d40.netlify.app/match_point_heartbeat.mp3" loop hidden></audio>
+
+    <div id="loading-screen">
+        <div class="folder-wrapper" id="folder" onclick="openDatabase()">
+            <div class="folder-back">
+                <div class="envelope-seal">SEOUL<br>FALCONS</div>
+                <div class="click-hint">UNSEAL ENVELOPE</div>
+                <div class="envelope-id">ID: FALCON_STRICT_02</div>
+            </div>
+            <div class="folder-front">
+                <div class="doc-header"><span>OFFICIAL DATABASE</span></div>
+                <div class="doc-line"></div>
+                <div class="doc-line" style="width:70%"></div>
+                <div class="stamp">CLASSIFIED</div>
+                <div style="font-family:'Share Tech Mono'; font-size:0.6rem; margin-top:auto; text-align:right;">DECRYPTING...</div>
+            </div>
+        </div>
+    </div>
+
+    <header class="main-header">
+        <div class="header-content">
+            <h0 class="penetration-main-text">Penetration</h0>
+            <div class="volleyball-sub-text">Volleyball Simulation</div>
+        </div>
+    </header>
+
+    <div class="container" id="main-content">
+        <nav class="sidebar">
+            <div id="roster-wrapper" style="display:contents;"></div>
+        </nav>
+
+        <div class="profile-card">
+            <div class="card-header">
+                <div class="name-row"><h1 id="p-name">이름</h1></div>
+                <div class="tags-row">
+                    <div class="tag" id="p-no">번호</div>
+                    <div class="tag" id="p-pos">포지션</div>
+                    <div class="tag">나이: <span id="p-age">00</span></div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="visual-section">
+                    <div class="photo-box"><img id="p-photo" src=""></div>
+                    <div class="chart-box"><canvas id="hexChart"></canvas></div>
+                </div>
+                <div class="info-area">
+                    <div class="data-row"><span class="label">신체 외형</span><div class="value" id="p-app">...</div></div>
+                    <div class="data-row"><span class="label">성격 특징</span><div class="value" id="p-pers">...</div></div>
+                    <div class="data-row"><span class="label">취향 정보</span><div class="value" id="p-likes">...</div></div>
+                    <div class="data-row"><span class="label highlight">성적 성향</span><div class="value" id="p-sex" style="color:var(--gold-light)">...</div></div>
+                    <div class="data-row"><span class="label">특이사항 / 기밀</span><div class="value" id="p-note">...</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="game-footer">
+        <button class="game-btn" onclick="changePlayer(-1)">PREV</button>
+        <div class="page-counter"><span id="curIndex">1</span> / 6</div>
+        <button class="game-btn" onclick="changePlayer(1)">NEXT</button>
+    </footer>
+
+    <script>
+        const players = [
+            {
+                name: "안서효", no: "1", pos: "OPPOSITE SPIKER", age: "24",
+                stats: [4, 2, 5, 4, 5, 4],
+                app: "짙은갈색의 짧은머리, 에메랄드빛 눈동자, 근육질 몸매, 키 189cm",
+                pers: "배구 바보. 사회성 부족. 감정 표현 서투름. 무뚝뚝하고 예민함",
+                likes: "편식x, 담배냄새 불호, {user}외 스킨십 극불호",
+                sexStyle: "│ Soft Dom & Primal 성향\n│ {user}를 가볍게 들어 올리거나 몰아붙이는 등 힘의 차이를 이용한 신체 제압 선호\n│ 잇자국이나 키스마크를 남겨 소유권을 표시하려는 집착",
+                note: "│ 서울 팰컨스의 에이스, 강 건과 입단동기\n│ 친구집에 얹혀 삶\n<span class='secret-data' onclick='revealSecret(this)'>※트라우마 열람 (클릭)</span><span class='secret-content' style='display:none;'>고등학생때 우연히 아버지가 엄마가 아닌 다른 여자와 섹스하는거 목격. 性에 대해 혐오감, 거부감이 생김. 그 후 아버지는 이혼, 그 여자와 곧바로 재혼함. 때문에 심인성 발기부전이 생겨 남성으로서의 자존감 바닥</span>",
+                photo: "https://penetration-id-photo.netlify.app/seohyoid.jpg"
+            },
+            {
+                name: "차지안", no: "2", pos: "SETTER", age: "25",
+                stats: [3, 5, 2, 2, 5, 3],
+                app: "연분홍빛 머리카락 반묶음, 페리도트색 눈동자, 183cm, 유연하고 마른 체형",
+                pers: "모든 상황을 데이터화하여 분석\n감정 기복이 적고 항상 평온을 유지",
+                likes: "에스프레소, 다크초콜릿 好 / 소음, 무질서 불호",
+                sexStyle: "│ Service Sub 성향\n│ 정신적으로는 리드하지만, 육체적으로는 완전히 지배당하는 구도 선호\n│ 지적 자극과 신체적 압박의 조화 즐김\n│ 욕구에 매우 솔직함. 평소의 무미건조함과 달리 침대에서는 나른하게 신음하며 원하는 바를 명확히 요구함",
+                note: "│ 서울 팰컨스의 두뇌\n│ 최도윤과 동거\n<span class='secret-data' onclick='revealSecret(this)'>※비밀 데이터 열람 (클릭)</span><span class='secret-content' style='display:none;'>최도윤과 연인사이</span>",
+                photo: "https://penetration-id-photo.netlify.app/jianid.jpg"
+            },
+            {
+                name: "최도윤", no: "5", pos: "MIDDLE BLOCKER", age: "24",
+                stats: [4, 4, 5, 5, 3, 2],
+                app: "흑발 숏컷, 푸른 눈동자, 198cm, 압도적인 근육질 대형견 피지컬",
+                pers: "복잡한 계산보다 본능에 충실\n긍정적이고 밝은 에너지. 사람좋아 댕댕미",
+                likes: "한우갈비, 흰우유 好 / 매운음식(맵찔이), 공포영화 불호",
+                sexStyle: "│ Rigid Dom 성향\n│ 평소에는 대형견, 침대에서는 짐승\n│ 거대한 체구로 제 품 안에 가두고 제압, 짓누르는 행위 즐김",
+                note: "│ 서울 팰컨스의 방패\n│ 팀 내 분위기 메이커\n│ 차지안과 동거\n<span class='secret-data' onclick='revealSecret(this)'>※비밀 데이터 열람 (클릭)</span><span class='secret-content' style='display:none;'>차지안과 연인사이</span>",
+                photo: "https://penetration-id-photo.netlify.app/doyoonid.jpg"
+            },
+            {
+                name: "강 건", no: "10", pos: "OUTSIDE HITTER 1", age: "24",
+                stats: [5, 5, 4, 5, 2, 4],
+                app: "적발 숏컷, 잿빛 눈동자, 191cm, 탄탄한 근육질",
+                pers: "에너지 넘침, 즉흥적, 도전적, 열혈바보\n코트 위의 분위기 메이커, 자칭 서효의 영원한 라이벌\n단순, 솔직, 뒤끝없음, 전투적 승부욕, 직진 본능",
+                likes: "에너지드링크, 단백질쉐이크, 힙합 好 / 비오는날, 패배 불호",
+                sexStyle: "│ Primal 성향\n│ 원초적이고 야생적인 에너지. 격렬하게 부딪히는 구도 즐김\n│ 가만히 있기보다 적극적으로 움직이며 신체적 소통을 추구함. 땀 흘리며 거칠게 몰입하는 스타일",
+                note: "│ 서울 팰컨스의 창, 안서효와 입단동기\n│ 팀의 주장. 경기전 파이팅, 팀 내 얼굴마담\n│ 숙소거주 (시끄럽다는 민원을 자주 받아서)",
+                photo: "https://penetration-id-photo.netlify.app/gunid.jpg"
+            },
+            {
+                name: "임이경", no: "6", pos: "OUTSIDE HITTER 2", age: "24",
+                stats: [2, 4, 3, 3, 5, 3],
+                app: "라벤더색 단정한 머리, 붉은 눈동자, 안경(스포츠고글), 188cm, 군더더기 없는 슬림 근육질",
+                pers: "극도의 효율중시. 불필요한 에너지 안 씀.\n배구는 직업일 뿐. 퇴근 시간 칼같이 지키며 사적인 모임은 가급적 피함\n포커페이스. 나른한 천재",
+                likes: "갓구운빵, 조말론향수, 정시퇴근 好 / 샤워못하는 상황, 회식, 참견 불호",
+                sexStyle: "│ Observer & Sensory Deprivation 성향\n│ 감정을 크게 드러내지 않고 상대를 관찰하는 것을 즐김\n│ 상대가 안달 나게 만드는 나른한 리드 선호\n│ 땀 흘리는 것보다 깔끔하고 정적인 분위기 선호\n│ 신장을 활용해 상대를 가두고 느긋하게 지켜봄",
+                note: "│ 서울 팰컨스의 살림꾼. 팀내 최고참\n│ 팀 내 부주장. 강건이 못하는 서류작업 다해줌\n│ 매사에 의욕 없어 보이지만 결정적인 순간에 프로의 실력을 보여줌\n│ 숙소거주 (금전적으로 효율적이라서)\n│ 섹스 시 안경 벗음",
+                photo: "https://penetration-id-photo.netlify.app/yikyungid.jpg"
+            },
+            {
+                name: "정다온", no: "18", pos: "LIBERO", age: "23",
+                stats: [5, 4, 1, 3, 4, 5],
+                app: "민트색 머리카락, 분홍색 눈동자, 앳된 얼굴, 172cm, 작지만 탄탄",
+                pers: "4차원 천재. 스스럼없이 안기고 치대는 친화력 끝판왕\n평소엔 귀여운 사고뭉치, 경기 중엔 광기 어린 집중력\n코트 뒤에서 모두의 등을 지키는 것에 자부심 느낌",
+                likes: "민트초코, 게임, 스킨십 好 / 혼자있기, 어둠, 고기없이 채소먹기 불호",
+                sexStyle: "│ Switch & Brat 성향\n│ 지독하게 매달림. 스킨십에 매우 적극적\n│ 상대의 온몸을 깨물거나 핥는 등 본능적이고 원초적인 행위 선호\n│ 장난기 가득하다가도 갑자기 진지해지는 눈빛 변화\n│ 상대의 보호 본능과 가학심을 동시에 자극",
+                note: "│ 서울 팰컨스의 땅다람쥐\n│ 믿을 수 없을 만큼 민첩한 몸놀림 보유\n│ 공에 대한 집념은 서울 팰컨스 내 탑1\n│ 숙소거주 (혼자보단 여럿이 좋아서)",
+                photo: "https://penetration-id-photo.netlify.app/daonid.jpg"
+            }
+        ];
+
+        let currentIndex = 0;
+        let hexChart;
+
+        window.onload = () => {
+            initRoster();
+            initChart();
+            loadPlayer(0);
+        };
+
+        function openDatabase() {
+            const audio = document.getElementById('bgm');
+            if(audio) {
+                audio.volume = 0.5; 
+                audio.play().catch(e => console.log("재생 오류:", e));
+            }
+
+            const folder = document.getElementById('folder');
+            folder.classList.add('open');
+            setTimeout(() => {
+                document.getElementById('loading-screen').style.opacity = '0';
+                document.getElementById('main-content').parentElement.style.opacity = '1';
+                document.getElementById('main-content').style.opacity = '1';
+                setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 800);
+            }, 1200);
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('hexChart').getContext('2d');
+            hexChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    // [여기가 변경된 부분입니다] 영어 -> 한글
+                    labels: ['체력', '지능', '파워', '점프', '기술', '속도'],
+                    datasets: [{
+                        data: [0,0,0,0,0,0],
+                        backgroundColor: 'rgba(212, 175, 55, 0.4)', borderColor: '#d4af37', borderWidth: 1.5,
+                        pointBackgroundColor: '#fff', pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255,255,255,0.1)' }, grid: { color: 'rgba(212, 175, 55, 0.2)' },
+                            pointLabels: { font: { size: 10, family: "'Noto Sans KR', 'Cinzel'" }, color: '#d4af37' },
+                            min: 0, max: 5, ticks: { stepSize: 1, display: false }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function initRoster() {
+            const wrapper = document.getElementById('roster-wrapper');
+            players.forEach((p, idx) => {
+                const div = document.createElement('div');
+                div.className = 'roster-item';
+                div.innerText = p.name;
+                div.onclick = () => { loadPlayer(idx); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+                wrapper.appendChild(div);
+            });
+        }
+
+        function loadPlayer(idx) {
+            currentIndex = idx;
+            const p = players[idx];
+            document.getElementById('p-name').innerText = p.name;
+            document.getElementById('p-no').innerText = "NO. " + p.no;
+            document.getElementById('p-pos').innerText = p.pos;
+            document.getElementById('p-age').innerText = p.age;
+            document.getElementById('p-app').innerText = p.app;
+            document.getElementById('p-pers').innerText = p.pers;
+            document.getElementById('p-likes').innerText = p.likes;
+            document.getElementById('p-sex').innerText = p.sexStyle;
+            document.getElementById('p-note').innerHTML = p.note;
+            document.getElementById('p-photo').src = p.photo;
+            hexChart.data.datasets[0].data = p.stats;
+            hexChart.update();
+            document.querySelectorAll('.roster-item').forEach((item, i) => { i === idx ? item.classList.add('active') : item.classList.remove('active'); });
+            document.getElementById('curIndex').innerText = idx + 1;
+        }
+
+        function changePlayer(dir) {
+            let newIndex = (currentIndex + dir + players.length) % players.length;
+            loadPlayer(newIndex);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function revealSecret(el) {
+            el.classList.add('revealed');
+            el.nextElementSibling.style.display = 'inline';
+            el.innerText = '※기밀 해제: ';
+        }
+    </script>
+</body>
+</html>
